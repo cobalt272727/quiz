@@ -45,6 +45,13 @@ body {
   @apply mt-6 mb-2 text-lg font-semibold;
 }
 
+/* 目次からのアンカー移動で sticky ヘッダーに隠れないようにする */
+.qb-book h1,
+.qb-book h2,
+.qb-book h3 {
+  scroll-margin-top: 5rem;
+}
+
 .qb-book p {
   @apply my-3 whitespace-pre-wrap;
 }
