@@ -115,6 +115,27 @@ export function EditorClient({
 
   const reveals = useMemo(() => buildReveals(parsed.ast), [parsed]);
   const questionCount = useMemo(() => collectQuestions(parsed.ast.blocks).length, [parsed]);
+  // 受験画面は @text と設問だけを表示する。外側の通常文・見出しなどは落ちるため、
+  // プレビューで「受験画面に出ない内容」を可視化する。
+  const hiddenPlaySummary = useMemo(() => {
+    const labels: Record<string, string> = {
+      heading: "見出し",
+      paragraph: "通常の文",
+      code: "コード",
+      list: "リスト",
+      math: "数式",
+      image: "画像",
+      table: "表",
+    };
+    const counts = new Map<string, number>();
+    for (const block of parsed.ast.blocks) {
+      if (block.type === "question" || block.type === "text") continue;
+      counts.set(block.type, (counts.get(block.type) ?? 0) + 1);
+    }
+    return [...counts.entries()]
+      .map(([type, count]) => `${labels[type] ?? type} ${count} 件`)
+      .join("、");
+  }, [parsed]);
   const errorCount = parsed.diagnostics.filter((d) => d.severity === "error").length;
   const warnCount = parsed.diagnostics.filter((d) => d.severity === "warning").length;
 
@@ -492,20 +513,34 @@ export function EditorClient({
           </div>
           <div className="thin-scroll min-h-0 flex-1 overflow-y-auto p-4">
             {tab === "preview" ? (
-              <div className="qb-book">
-                <h1>{publicBook.meta.title || "無題"}</h1>
-                {publicBook.meta.description && (
-                  <p className="text-slate-500 dark:text-slate-400">{publicBook.meta.description}</p>
+              <div>
+                {hiddenPlaySummary && (
+                  <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-200">
+                    <p className="font-semibold">受験画面では表示されない内容があります</p>
+                    <p className="mt-0.5">
+                      {hiddenPlaySummary}が、受験画面・結果画面では表示されません。
+                    </p>
+                    <p className="mt-1">
+                      表示するには、該当範囲を <code>@text ... @end</code> で囲んでください。
+                      設問内の文はそのまま表示されます。
+                    </p>
+                  </div>
                 )}
-                <AstView
-                  blocks={publicBook.blocks}
-                  mode="preview"
-                  reveals={reveals}
-                  answers={{}}
-                  {...(book
-                    ? { assetUrl: (assetId: string) => `/api/books/${book.id}/assets/${assetId}` }
-                    : {})}
-                />
+                <div className="qb-book">
+                  <h1>{publicBook.meta.title || "無題"}</h1>
+                  {publicBook.meta.description && (
+                    <p className="text-slate-500 dark:text-slate-400">{publicBook.meta.description}</p>
+                  )}
+                  <AstView
+                    blocks={publicBook.blocks}
+                    mode="preview"
+                    reveals={reveals}
+                    answers={{}}
+                    {...(book
+                      ? { assetUrl: (assetId: string) => `/api/books/${book.id}/assets/${assetId}` }
+                      : {})}
+                  />
+                </div>
               </div>
             ) : parsed.diagnostics.length === 0 ? (
               <p className="text-sm text-slate-500 dark:text-slate-400">診断はありません。</p>
