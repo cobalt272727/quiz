@@ -164,6 +164,15 @@ export function parseBlocks(
   return promoteAutoQuestions(ctx, blocks);
 }
 
+/** 受験画面(`arrangePlayBlocks`)に出ないトップレベルブロックの警告(§5.2) */
+function warnHiddenPlay(ctx: ParseContext, offset: number, label: string): void {
+  ctx.diags.warn(
+    "QB-W003",
+    offset,
+    `${label}。表示するには @text ... @end で囲んでください`,
+  );
+}
+
 function parseBlocksFromLines(
   ctx: ParseContext,
   lines: Line[],
@@ -191,6 +200,7 @@ function parseBlocksFromLines(
       // 本文はフェンス内の生テキスト(末尾の改行を 1 つ落とす)
       const raw = ctx.src.slice(bodyStart, bodyEnd);
       (blocks[blocks.length - 1] as { v: string }).v = raw.replace(/\n$/, "");
+      if (!opts.inQuestion) warnHiddenPlay(ctx, line.start, "コードブロック");
       i = j < lines.length ? j + 1 : j;
       continue;
     }
@@ -204,6 +214,7 @@ function parseBlocksFromLines(
         text: plainText(heading.text),
         id: headingId(ctx, heading.text),
       });
+      if (!opts.inQuestion) warnHiddenPlay(ctx, line.start, "見出し");
       i++;
       continue;
     }
@@ -236,6 +247,7 @@ function parseBlocksFromLines(
     // 数式ブロック $$...$$
     const mathOpen = /^[ \t]*\$\$(.*)$/.exec(line.text);
     if (mathOpen) {
+      if (!opts.inQuestion) warnHiddenPlay(ctx, line.start, "数式ブロック");
       const startOffset = line.start + line.text.indexOf("$$") + 2;
       const sameLine = mathOpen[1].indexOf("$$");
       if (sameLine >= 0) {
@@ -267,13 +279,26 @@ function parseBlocksFromLines(
     const image = matchImageLine(line.text);
     if (image) {
       const block = buildImage(ctx, image, line.start);
-      if (block) blocks.push(block);
+      if (block) {
+        if (!opts.inQuestion) warnHiddenPlay(ctx, line.start, "画像");
+        blocks.push(block);
+      }
       i++;
       continue;
     }
 
     if (isTableStart(lines, i)) {
       const parsed = parseTable(ctx, lines, i, opts);
+      if (!opts.inQuestion) {
+        const rowHasBlank = (row: Inline[][]) =>
+          collectBlanks([{ type: "table", header: [], rows: [row] }]).length > 0;
+        const hasQuestionRow = parsed.block.rows.some(rowHasBlank);
+        const hasHiddenRow =
+          parsed.block.rows.length === 0 || parsed.block.rows.some((row) => !rowHasBlank(row));
+        if (hasHiddenRow) {
+          warnHiddenPlay(ctx, line.start, hasQuestionRow ? "表の一部" : "表");
+        }
+      }
       blocks.push(parsed.block);
       i = parsed.next;
       continue;
@@ -281,6 +306,15 @@ function parseBlocksFromLines(
 
     if (matchListItem(line.text)) {
       const parsed = parseList(ctx, lines, i, opts);
+      if (!opts.inQuestion) {
+        const itemHasBlank = (item: Block[]) => collectBlanks(item).length > 0;
+        const hasQuestionItem = parsed.block.items.some(itemHasBlank);
+        const hasHiddenItem =
+          parsed.block.items.length === 0 || parsed.block.items.some((item) => !itemHasBlank(item));
+        if (hasHiddenItem) {
+          warnHiddenPlay(ctx, line.start, hasQuestionItem ? "リストの一部" : "リスト");
+        }
+      }
       blocks.push(parsed.block);
       i = parsed.next;
       continue;
@@ -305,6 +339,9 @@ function parseBlocksFromLines(
     const paragraph = makeParagraph(ctx, text, paraStart, opts);
     ctx.blockEnd.set(paragraph, paraEnd);
     ctx.blockStart.set(paragraph, paraStart);
+    if (!opts.inQuestion && !hasBlank(paragraph.c)) {
+      warnHiddenPlay(ctx, paraStart, "通常の文");
+    }
     blocks.push(paragraph);
     i = j;
   }

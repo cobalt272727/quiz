@@ -17,6 +17,7 @@ export const DIAGNOSTIC_MESSAGES = {
   "QB-E012": "リンク URL のスキームが許可リスト外です",
   "QB-W001": "ID が未付与です(保存時に自動付与されます)",
   "QB-W002": "外部画像を使用しています",
+  "QB-W003": "受験画面・結果画面に表示されない内容があります",
 } as const;
 
 export type DiagnosticCode = keyof typeof DIAGNOSTIC_MESSAGES;

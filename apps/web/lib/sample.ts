@@ -18,9 +18,11 @@ shuffle: { questions: false, choices: true }
 normalize: { kana: false }
 ---
 
+@text
 # 第1章 古代
 
 ## 1-1 飛鳥時代
+@end
 
 聖徳太子は [[603]] 年に冠位十二階を制定した。
 

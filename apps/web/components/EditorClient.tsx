@@ -522,7 +522,7 @@ export function EditorClient({
                     </p>
                     <p className="mt-1">
                       表示するには、該当範囲を <code>@text ... @end</code> で囲んでください。
-                      設問内の文はそのまま表示されます。
+                      設問内の文はそのまま表示されます。診断タブにも <code>QB-W003</code> として表示されます。
                     </p>
                   </div>
                 )}
