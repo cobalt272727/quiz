@@ -13,9 +13,7 @@ export async function SiteHeader() {
     <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/80 backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
       <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-3">
         <Link href="/" className="flex items-center gap-2 font-bold">
-          <span className="grid size-7 place-items-center rounded-lg bg-blue-600 text-sm text-white">
-            Q
-          </span>
+          <img src="/icon.svg" alt="" width={28} height={28} className="size-7" />
           問題ブック
         </Link>
         <nav className="ml-auto flex items-center gap-1 text-sm">

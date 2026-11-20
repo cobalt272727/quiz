@@ -25,7 +25,8 @@
     "e2e": "node --env-file=.env tools/e2e-api.ts && node --env-file=.env tools/e2e-blanks.ts && node --env-file=.env tools/e2e-share.ts && node --env-file=.env tools/e2e-assets.ts && node --env-file=.env tools/e2e-regex.ts && node --env-file=.env tools/e2e-admin.ts && node --env-file=.env tools/e2e-learning.ts && node --env-file=.env tools/e2e-account.ts && node --env-file=.env tools/e2e-books.ts",
     "admin:grant": "node --env-file=.env tools/grant-admin.ts",
     "user:passwd": "node --env-file=.env tools/set-password.ts",
-    "og:image": "node tools/make-og-image.ts"
+    "og:image": "node tools/make-og-image.ts",
+    "icons": "node tools/make-icons.mjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.16",

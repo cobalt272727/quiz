@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "katex/dist/katex.min.css";
 import "./globals.css";
 import { SiteHeader } from "@/components/SiteHeader";
@@ -20,6 +20,18 @@ export const metadata: Metadata = {
     images: [{ url: "/og.png", width: 1200, height: 630, alt: "問題ブック" }],
   },
   twitter: { card: "summary_large_image" },
+  appleWebApp: {
+    capable: true,
+    title: "問題ブック",
+    statusBarStyle: "default",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#2563eb" },
+    { media: "(prefers-color-scheme: dark)", color: "#0f172a" },
+  ],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -51,7 +63,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               通報
             </a>
           </nav>
-          <p className="mt-2">問題ブック</p>
+          <p className="mt-2 flex items-center justify-center gap-1.5">
+            <img src="/icon.svg" alt="" width={16} height={16} className="size-4" />
+            問題ブック
+          </p>
         </footer>
       </body>
     </html>

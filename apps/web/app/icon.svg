@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="問題ブック">
+  <title>問題ブック</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2563eb"/>
+      <stop offset="0.55" stop-color="#0ea5e9"/>
+      <stop offset="1" stop-color="#10b981"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.2" cy="0.08" r="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.3"/>
+      <stop offset="0.65" stop-color="#ffffff" stop-opacity="0.04"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="shade" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#0f172a" stop-opacity="0.26"/>
+      <stop offset="0.65" stop-color="#0f172a" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#0f172a" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <rect width="512" height="512" rx="112" fill="url(#glow)"/>
+  <rect x="3" y="3" width="506" height="506" rx="109" fill="none" stroke="#ffffff" stroke-opacity="0.2" stroke-width="6"/>
+  <ellipse cx="256" cy="432" rx="152" ry="17" fill="url(#shade)"/>
+  <path d="M104 344 C168 322 230 330 254 352 L254 424 C230 402 168 394 104 416 Z" fill="#ffffff"/>
+  <path d="M408 344 C344 322 282 330 258 352 L258 424 C282 402 344 394 408 416 Z" fill="#dbeafe"/>
+  <g transform="translate(0 -58) scale(0.9) translate(28 0)">
+    <path d="M204 220 C204 182 226 160 256 160 C286 160 308 182 308 220 C308 248 288 262 268 276 C256 285 252 294 252 310" fill="none" stroke="#ffffff" stroke-width="44" stroke-linecap="round"/>
+    <circle cx="252" cy="348" r="24" fill="#ffffff"/>
+  </g>
+</svg>
