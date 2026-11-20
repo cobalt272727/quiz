@@ -81,8 +81,8 @@ export default async function PublicBookPage({ params }: Params) {
           ))}
         </div>
       )}
-      <div className="mt-8 flex flex-wrap items-center gap-3">
-        <StartAttemptButton bookId={book.id} />
+      <div className="mt-8 flex flex-wrap items-start gap-4">
+        <StartAttemptButton bookId={book.id} practiceFeedback={book.practiceFeedback} />
         <ForkButton bookId={book.id} signedIn={Boolean(user)} allowed={book.allowFork} />
         {user && <BookmarkButton bookId={book.id} />}
       </div>

@@ -764,6 +764,8 @@ export type AttemptResultView = {
   order: string[];
   answers: PlayState["answers"];
   practiceFeedback: boolean;
+  /** 結果画面から復習受験を開始できるか(link 公開は共有トークンが必要) */
+  canStartReview: boolean;
 };
 
 export type ResultResult =
@@ -800,6 +802,9 @@ export async function loadResult(input: {
       order: settings.questionIds,
       answers: answersFromRows(attempt.answers),
       practiceFeedback: settings.practiceFeedback,
+      canStartReview:
+        attempt.book.visibility !== "link" ||
+        (input.actor.userId !== null && attempt.book.ownerId === input.actor.userId),
       attempt: {
         id: attempt.id,
         bookId: attempt.bookId,

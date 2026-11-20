@@ -113,6 +113,8 @@ export type PublicBookDetail = {
   visibility: string;
   /** 公開ブックのフォーク可否(§7.2) */
   allowFork: boolean;
+  /** 練習モードで即時採点を許可しているか(§7.7) */
+  practiceFeedback: boolean;
   source?: never;
 };
 
@@ -136,15 +138,17 @@ export async function getPublicBook(id: string): Promise<PublicBookDetail | null
     },
   });
   if (!book) return null;
+  const ast = book.ast as unknown as BookAst;
   return {
     id: book.id,
     title: book.title,
     description: book.description,
     tags: book.tags,
     ownerName: book.owner.name || book.owner.loginId || "匿名",
-    questionCount: countQuestions(book.ast as unknown as BookAst),
+    questionCount: countQuestions(ast),
     updatedAt: book.updatedAt,
     visibility: book.visibility,
     allowFork: book.allowFork,
+    practiceFeedback: Boolean(ast.meta?.practiceFeedback),
   };
 }

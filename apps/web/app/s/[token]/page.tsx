@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import type { BookAst } from "@qb/parser";
 import { resolveBookByToken } from "@/lib/share";
 import { StartAttemptButton } from "@/components/StartAttemptButton";
 
@@ -15,6 +16,7 @@ export default async function SharedBookPage({ params }: { params: Promise<{ tok
   const { token } = await params;
   const book = await resolveBookByToken(token);
   if (!book) notFound();
+  const practiceFeedback = Boolean((book.ast as unknown as BookAst).meta?.practiceFeedback);
 
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-10">
@@ -24,7 +26,7 @@ export default async function SharedBookPage({ params }: { params: Promise<{ tok
         <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">{book.description}</p>
       )}
       <div className="mt-8">
-        <StartAttemptButton bookId={book.id} shareToken={token} />
+        <StartAttemptButton bookId={book.id} shareToken={token} practiceFeedback={practiceFeedback} />
       </div>
       <p className="mt-4 text-xs text-slate-500 dark:text-slate-400">
         このリンクを知っている人だけが閲覧・受験できます。ログインは不要です。

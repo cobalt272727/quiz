@@ -38,6 +38,7 @@ export function EditorClient({
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [tab, setTab] = useState<"preview" | "diagnostics">("preview");
   const [notice, setNotice] = useState<string | null>(null);
+  const [attemptMode, setAttemptMode] = useState<"practice" | "exam">("practice");
   const fileInput = useRef<HTMLInputElement | null>(null);
   const imageInput = useRef<HTMLInputElement | null>(null);
   const editorRef = useRef<QbEditorHandle | null>(null);
@@ -270,7 +271,7 @@ export function EditorClient({
         const res = await fetch(`/api/books/${book.id}/attempts`, {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ mode: "practice" }),
+          body: JSON.stringify({ mode: attemptMode }),
         });
         const data = (await res.json()) as { attemptId?: string; error?: { message?: string } };
         if (res.ok && data.attemptId) {
@@ -414,12 +415,27 @@ export function EditorClient({
         >
           下書き保存
         </button>
+        {book && (
+          <select
+            value={attemptMode}
+            onChange={(event) => setAttemptMode(event.target.value as "practice" | "exam")}
+            className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-900"
+            aria-label="受験モード"
+          >
+            <option value="practice">練習</option>
+            <option value="exam">本番</option>
+          </select>
+        )}
         <button
           type="button"
           onClick={() => void startAttempt()}
           className="rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-medium text-white transition hover:bg-blue-500"
         >
-          このブックで受験する
+          {book
+            ? attemptMode === "practice"
+              ? "練習モードで受験"
+              : "本番モードで受験"
+            : "このブックで受験する"}
         </button>
       </div>
 

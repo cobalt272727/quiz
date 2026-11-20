@@ -5,6 +5,7 @@ import { loadResult } from "@/lib/attempts";
 import { currentActor } from "@/lib/guest";
 import { AstView } from "@/components/AstView";
 import { SelfGradeControls } from "@/components/SelfGradeControls";
+import { StartAttemptButton } from "@/components/StartAttemptButton";
 import type { PublicQuestion } from "@qb/parser";
 import type { Reveal } from "@/lib/book";
 
@@ -106,6 +107,12 @@ export default async function ResultPage({ params }: { params: Promise<{ id: str
         )}
 
         <div className="mt-4 flex flex-wrap gap-2">
+          {result.canStartReview && result.grade.reviewQuestionIds.length > 0 && (
+            <StartAttemptButton
+              bookId={result.attempt.bookId}
+              reviewOnly={result.grade.reviewQuestionIds}
+            />
+          )}
           {result.canSelfGrade.length > 0 && (
             <SelfGradeControls
               attemptId={id}
@@ -114,6 +121,11 @@ export default async function ResultPage({ params }: { params: Promise<{ id: str
                 number: ordered.findIndex((q) => q.id === questionId) + 1,
               }))}
             />
+          )}
+          {!result.canStartReview && result.grade.reviewQuestionIds.length > 0 && (
+            <p className="self-center text-xs text-slate-500 dark:text-slate-400">
+              復習を開始するには、共有リンクを開き直してください。
+            </p>
           )}
           <Link
             href={`/attempt/${id}`}

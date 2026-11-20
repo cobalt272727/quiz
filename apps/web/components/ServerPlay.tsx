@@ -19,6 +19,8 @@ function formatSeconds(total: number): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
+const MODE_LABEL: Record<string, string> = { practice: "練習", exam: "本番", review: "復習" };
+
 function answerRequests(
   answer: QuestionAnswer,
 ): Array<{ blankId: string | null; value: unknown }> {
@@ -482,6 +484,17 @@ export function ServerPlay({ attemptId }: { attemptId: string }) {
       <header className="mb-6">
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="mr-auto text-xl font-bold">{ready!.book.title || "無題のブック"}</h1>
+          <span
+            className={`rounded-full px-3 py-1 text-xs font-medium ${
+              ready!.attempt.mode === "exam"
+                ? "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-200"
+                : ready!.attempt.mode === "review"
+                  ? "bg-violet-100 text-violet-800 dark:bg-violet-950/50 dark:text-violet-200"
+                  : "bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-200"
+            }`}
+          >
+            {MODE_LABEL[ready!.attempt.mode] ?? ready!.attempt.mode}モード
+          </span>
           {remaining !== null && !finished && (
             <span
               className={`rounded-full px-3 py-1 text-sm font-semibold tabular-nums ${
@@ -500,6 +513,16 @@ export function ServerPlay({ attemptId }: { attemptId: string }) {
         </div>
         {ready!.book.description && (
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{ready!.book.description}</p>
+        )}
+        {!finished && ready!.attempt.mode === "exam" && (
+          <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+            本番モード: 答え合わせはできません。提出後に採点します。
+          </p>
+        )}
+        {!finished && ready!.attempt.mode !== "exam" && !ready!.book.practiceFeedback && (
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            このブックは即時採点が無効です。提出後に採点します。
+          </p>
         )}
       </header>
 

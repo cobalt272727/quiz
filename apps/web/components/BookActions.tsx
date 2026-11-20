@@ -20,6 +20,7 @@ export function BookActions({
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [allowFork, setAllowFork] = useState(initialAllowFork);
+  const [mode, setMode] = useState<"practice" | "exam">("practice");
 
   const play = async () => {
     setBusy("play");
@@ -28,7 +29,7 @@ export function BookActions({
       const res = await fetch(`/api/books/${bookId}/attempts`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ mode: "practice" }),
+        body: JSON.stringify({ mode }),
       });
       const data = (await res.json()) as { attemptId?: string; error?: { message?: string } };
       if (!res.ok || !data.attemptId) {
@@ -160,13 +161,23 @@ export function BookActions({
 
   return (
     <div className="flex flex-wrap items-center gap-2 text-sm">
+      <select
+        value={mode}
+        onChange={(event) => setMode(event.target.value as "practice" | "exam")}
+        disabled={busy !== null}
+        className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 dark:border-slate-700 dark:bg-slate-900"
+        aria-label="受験モード"
+      >
+        <option value="practice">練習</option>
+        <option value="exam">本番</option>
+      </select>
       <button
         type="button"
         onClick={play}
         disabled={busy !== null}
         className="rounded-lg bg-blue-600 px-3 py-1.5 font-medium text-white hover:bg-blue-500 disabled:opacity-60"
       >
-        {busy === "play" ? "開始中…" : "受験する"}
+        {busy === "play" ? "開始中…" : mode === "practice" ? "練習で受験" : "本番で受験"}
       </button>
       <a
         href={`/books/new?book=${bookId}`}
