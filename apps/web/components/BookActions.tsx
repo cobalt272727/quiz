@@ -20,10 +20,9 @@ export function BookActions({
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [allowFork, setAllowFork] = useState(initialAllowFork);
-  const [mode, setMode] = useState<"practice" | "exam">("practice");
 
-  const play = async () => {
-    setBusy("play");
+  const play = async (mode: "practice" | "exam") => {
+    setBusy(`play:${mode}`);
     setError(null);
     try {
       const res = await fetch(`/api/books/${bookId}/attempts`, {
@@ -161,23 +160,21 @@ export function BookActions({
 
   return (
     <div className="flex flex-wrap items-center gap-2 text-sm">
-      <select
-        value={mode}
-        onChange={(event) => setMode(event.target.value as "practice" | "exam")}
-        disabled={busy !== null}
-        className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 dark:border-slate-700 dark:bg-slate-900"
-        aria-label="受験モード"
-      >
-        <option value="practice">練習</option>
-        <option value="exam">本番</option>
-      </select>
       <button
         type="button"
-        onClick={play}
+        onClick={() => void play("practice")}
         disabled={busy !== null}
         className="rounded-lg bg-blue-600 px-3 py-1.5 font-medium text-white hover:bg-blue-500 disabled:opacity-60"
       >
-        {busy === "play" ? "開始中…" : mode === "practice" ? "練習で受験" : "本番で受験"}
+        {busy === "play:practice" ? "開始中…" : "練習で受験"}
+      </button>
+      <button
+        type="button"
+        onClick={() => void play("exam")}
+        disabled={busy !== null}
+        className="rounded-lg border border-blue-600 px-3 py-1.5 font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-60 dark:border-blue-400 dark:text-blue-300 dark:hover:bg-blue-950/40"
+      >
+        {busy === "play:exam" ? "開始中…" : "本番で受験"}
       </button>
       <a
         href={`/books/new?book=${bookId}`}
