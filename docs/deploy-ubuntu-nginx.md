@@ -465,7 +465,11 @@ sudo -u qb -H bash -lc '
 '
 
 # 3) マイグレーション(後方互換な変更のみ自動適用。破壊的変更は手順を分ける)
-sudo -u qb -H bash -lc 'cd /srv/qb/app && pnpm db:deploy'
+sudo -u qb -H bash -lc '
+  set -a; . /srv/qb/shared/.env; set +a
+  cd /srv/qb/app
+  pnpm db:deploy
+'
 
 # 4) 再起動
 sudo systemctl restart qb-web
