@@ -131,11 +131,11 @@ await call(
 r = await call(`/api/attempts/${attemptId}/check`, { method: "POST", body: JSON.stringify({ questionId: blankQuestion!.id }) }, learnerJar);
 if (r.status === 200 && r.json.question?.correct === true) ok("練習モードで即時採点できる(正解)");
 else fail(`check ${r.status} ${r.text.slice(0, 150)}`);
-if (!JSON.stringify(r.json).includes('"answers"')) ok("check の応答に正解は含まれない");
-else fail("check の応答に正解が含まれている");
+if (Array.isArray(r.json.reveal?.answers) && r.json.reveal.answers.length > 0) ok("check の応答に正解が含まれる");
+else fail("check の応答に正解が含まれない");
 
 r = await call(`/api/attempts/${attemptId}/check`, { method: "POST", body: JSON.stringify({ questionId: essayQuestion!.id }) }, learnerJar);
-if (r.status === 200 && r.json.model) ok("記述式の check で模範解答が返る");
+if (r.status === 200 && r.json.reveal?.model) ok("記述式の check で模範解答が返る");
 else fail(`essay check ${r.status}`);
 
 // --- 中断(§7.4) ---

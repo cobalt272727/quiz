@@ -114,7 +114,7 @@ Next.js の Route Handler として実装しています(`apps/web/app/api/**`)�
 
 | メソッド | パス | 内容 |
 |----------|------|------|
-| POST | `/api/attempts/:id/check` | 設問単位の即時採点。練習・復習モード + `practiceFeedback: true` のみ。正解は返さず解説・模範解答のみ |
+| POST | `/api/attempts/:id/check` | 設問単位の即時採点。練習・復習モード + `practiceFeedback: true` のみ。正誤・得点・正解・解説・模範解答を返し、回答欄をロック |
 | POST | `/api/attempts/:id/abandon` | 受験の中断(`abandoned`。採点しない) |
 | POST | `/api/attempts/:id/self-grade` | essay の自己採点(`{ questionId, selfGrade: full\|half\|none }`)。開示後(要 check 済み or 終端状態)のみ |
 | GET | `/api/attempts/:id/result` | 結果・正解・解説。`submitted` / `expired` のみ(他は 409) |

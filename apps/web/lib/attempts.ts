@@ -25,7 +25,7 @@ import { mulberry32, type QuestionAnswer } from "./book";
  * 受験と採点(SPEC_v4 §7.6〜§7.9)
  *
  * - 出題セットと順序は Attempt 開始時に確定し、`Attempt.settings` に保存する
- * - 正解・解説はサーバから出さない(未提出時は `toPublic` のみ)
+ * - 正解・解説は原則サーバから出さない(練習モードの `check` と提出後のみ)
  * - 採点の正はサーバ。クライアントの採点結果は信用しない
  */
 
@@ -47,7 +47,7 @@ export type PlayReveal = {
   model?: ReturnType<typeof toPublicBlock>[];
 };
 
-/** 提出後に返す内容(正解・解説・模範解答。§7.9) */
+/** `check` と提出後に返す内容(正解・解説・模範解答。§7.7, §7.9) */
 function playReveals(ast: BookAst, questionIds: string[]): PlayReveal[] {
   const byId = new Map(collectQuestions(ast.blocks).map((q) => [q.id, q]));
   return toResult(ast)
@@ -579,7 +579,7 @@ export { latestRevisions };
  * ------------------------------------------------------------------ */
 
 export type CheckResult =
-  | { ok: true; question: QuestionGrade; explain?: ReturnType<typeof toPublicBlock>[]; model?: ReturnType<typeof toPublicBlock>[] }
+  | { ok: true; question: QuestionGrade; reveal: PlayReveal }
   | {
       ok: false;
       reason: "not_found" | "forbidden" | "closed" | "not_allowed" | "invalid";
@@ -587,7 +587,8 @@ export type CheckResult =
 
 /**
  * 設問単位の即時採点(練習・復習モード + `practiceFeedback: true` のみ)
- * 正解そのものは返さず、解説・模範解答(許可済み)だけを返す(§7.9)。
+ * 正誤・得点に加え、その設問の正解・解説・模範解答を返す。
+ * 応答後は `Answer.checkedAt` を記録し、受験画面では回答欄をロックする。
  */
 export async function checkQuestion(input: {
   attemptId: string;
@@ -621,18 +622,30 @@ export async function checkQuestion(input: {
     regexTest: re2Test,
   });
 
+  const reveal = playReveals(ast, [question.id])[0];
+  if (!reveal) return { ok: false, reason: "invalid" };
+
+  // 未回答の essay も開示後に自己採点できるよう、空の回答行を用意する
+  if (question.kind === "essay") {
+    const existing = attempt.answers.find((a) => a.questionId === question.id && a.blankId === null);
+    if (!existing) {
+      await upsertAnswerRow({
+        attemptId: attempt.id,
+        questionId: question.id,
+        questionRevision: 1,
+        blankId: null,
+        value: { text: "" },
+      });
+    }
+  }
+
   // 自己採点の前提として「開示済み」を記録する(§7.5)
   await db.answer.updateMany({
     where: { attemptId: attempt.id, questionId: question.id },
     data: { checkedAt: new Date() },
   });
 
-  return {
-    ok: true,
-    question: grade,
-    ...(question.explain ? { explain: question.explain.map(toPublicBlock) } : {}),
-    ...(question.model ? { model: question.model.map(toPublicBlock) } : {}),
-  };
+  return { ok: true, question: grade, reveal };
 }
 
 export type AbandonResult =

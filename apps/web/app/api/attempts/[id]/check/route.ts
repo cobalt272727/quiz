@@ -12,7 +12,7 @@ type Params = { params: Promise<{ id: string }> };
 const Body = z.object({ questionId: z.string().min(1).max(64) });
 const CHECK_LIMIT = { limit: 120, windowMs: 10 * 60 * 1000, lockMs: 10 * 60 * 1000 };
 
-/** POST /api/attempts/:id/check … 設問単位の即時採点(§7.7)。正解は返さない */
+/** POST /api/attempts/:id/check … 設問単位の即時採点(§7.7)。正誤・得点・正解を返す */
 export async function POST(request: Request, { params }: Params) {
   try {
     if (!checkSameOrigin(request)) return fail("forbidden", "送信元が不正です");
@@ -47,11 +47,7 @@ export async function POST(request: Request, { params }: Params) {
       if (result.reason === "invalid") return fail("invalid_request", "設問が見つかりません");
       return fail("conflict", "この受験は終了しています");
     }
-    return json({
-      question: result.question,
-      ...(result.explain ? { explain: result.explain } : {}),
-      ...(result.model ? { model: result.model } : {}),
-    });
+    return json({ question: result.question, reveal: result.reveal });
   } catch (error) {
     return handleRouteError(error);
   }

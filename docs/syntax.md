@@ -12,7 +12,7 @@ description: 古代〜中世      # 任意
 tags: [history, japan]
 lang: ja                    # ja / en
 timeLimit: 600              # 秒(任意)
-practiceFeedback: true      # 練習モードの即時採点を許可(既定 false)
+practiceFeedback: true      # 練習モードの即時採点と正解表示を許可(既定 false)
 shuffle: { questions: true, choices: true }
 normalize: { kana: false }  # true でひらがな/カタカナを同一視
 ---

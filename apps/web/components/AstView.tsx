@@ -280,6 +280,10 @@ function currentBlanks(ctx: Ctx): Record<string, string> {
   return a && a.kind === "blanks" ? a.values : {};
 }
 
+function isChecked(ctx: Ctx): boolean {
+  return Boolean(ctx.questionId && ctx.checkedIds?.has(ctx.questionId));
+}
+
 function setBlank(ctx: Ctx, blankId: string, value: string) {
   if (!ctx.questionId || !ctx.onChange) return;
   const values = { ...currentBlanks(ctx), [blankId]: value };
@@ -294,7 +298,8 @@ function answerFor(ctx: Ctx, blankId: string): ResultAnswer | null {
 }
 
 function blankState(ctx: Ctx, blankId: string): "correct" | "incorrect" | undefined {
-  if (ctx.mode !== "result" || !ctx.questionId) return undefined;
+  if (!ctx.questionId) return undefined;
+  if (ctx.mode !== "result" && !isChecked(ctx)) return undefined;
   const grade = ctx.results.get(ctx.questionId);
   const b = grade?.blanks?.find((x) => x.blankId === blankId);
   if (!b) return undefined;
@@ -318,12 +323,13 @@ function BlankView({
   ctx: Ctx;
 }) {
   const value = currentBlanks(ctx)[id] ?? "";
+  const checked = isChecked(ctx);
 
   if (ctx.mode === "preview") {
     return <span className="qb-blank-placeholder">{input === "number" ? "数値" : "空欄"}</span>;
   }
 
-  if (ctx.mode === "result") {
+  if (ctx.mode === "result" || checked) {
     const state = blankState(ctx, id);
     const answer = answerFor(ctx, id);
     const display = answer && "display" in answer ? answer.display : [];
@@ -370,6 +376,7 @@ function ChoiceBlankView({
 }) {
   const value = currentBlanks(ctx)[inline.id] ?? "";
   const order = ctx.blankOrder.get(inline.id) ?? inline.options.map((_, i) => i);
+  const checked = isChecked(ctx);
 
   if (ctx.mode === "preview") {
     return (
@@ -379,7 +386,7 @@ function ChoiceBlankView({
     );
   }
 
-  if (ctx.mode === "result") {
+  if (ctx.mode === "result" || checked) {
     const state = blankState(ctx, inline.id);
     const answer = answerFor(ctx, inline.id);
     const display = answer && "display" in answer ? answer.display : [];
@@ -507,7 +514,7 @@ function QuestionView({ question, ctx }: { question: PublicQuestion; ctx: Ctx })
       {question.kind === "truefalse" && <TrueFalseQuestion question={question} ctx={qctx} />}
       {question.kind === "essay" && <EssayQuestion question={question} ctx={qctx} />}
 
-      {question.hint && question.hint.length > 0 && ctx.mode !== "result" && (
+      {question.hint && question.hint.length > 0 && ctx.mode !== "result" && !(ctx.mode === "play" && checked) && (
         <details className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-sm dark:bg-slate-800/60">
           <summary className="cursor-pointer text-slate-600 dark:text-slate-300">ヒント</summary>
           <div className="qb-book mt-2">
@@ -534,10 +541,12 @@ function ChoiceQuestion({ question, ctx }: { question: PublicQuestion; ctx: Ctx 
       .filter((a): a is Extract<ResultAnswer, { kind: "choice" }> => a.kind === "choice")
       .flatMap((a) => a.display),
   );
-  const disabled = ctx.mode !== "play";
+  const checked = ctx.checkedIds?.has(question.id) ?? false;
+  const locked = ctx.mode !== "play" || checked;
+  const showCorrect = ctx.mode === "result" || checked;
 
   const toggle = (id: string) => {
-    if (!ctx.onChange) return;
+    if (locked || !ctx.onChange) return;
     if (question.kind === "single") {
       ctx.onChange(question.id, { kind: "choice", choiceIds: [id] });
       return;
@@ -553,7 +562,7 @@ function ChoiceQuestion({ question, ctx }: { question: PublicQuestion; ctx: Ctx 
         const choice = byId.get(id) as PublicChoice | undefined;
         if (!choice) return null;
         const isSelected = selected.includes(id);
-        const isCorrect = ctx.mode === "result" && correctIds.has(id);
+        const isCorrect = showCorrect && correctIds.has(id);
         return (
           <label
             key={id}
@@ -566,9 +575,9 @@ function ChoiceQuestion({ question, ctx }: { question: PublicQuestion; ctx: Ctx 
               name={`q-${question.id}`}
               className="mt-1.5 accent-blue-600"
               checked={isSelected}
-              disabled={disabled}
+              disabled={locked}
               onChange={() => toggle(id)}
-              data-qb-focusable={ctx.mode === "play" ? true : undefined}
+              data-qb-focusable={!locked ? true : undefined}
             />
             <span className="qb-book flex-1">
               <InlineList inlines={choice.label} ctx={ctx} />
@@ -586,9 +595,12 @@ function TrueFalseQuestion({ question, ctx }: { question: PublicQuestion; ctx: C
   const value = answer && answer.kind === "boolean" ? answer.value : null;
   const reveal = ctx.reveals.get(question.id);
   const correct = reveal?.answers.find((a) => a.kind === "boolean");
+  const checked = ctx.checkedIds?.has(question.id) ?? false;
+  const locked = ctx.mode !== "play" || checked;
+  const showCorrect = ctx.mode === "result" || checked;
 
   const set = (v: boolean) => {
-    if (ctx.mode !== "play" || !ctx.onChange) return;
+    if (locked || !ctx.onChange) return;
     ctx.onChange(question.id, { kind: "boolean", value: v });
   };
 
@@ -597,16 +609,16 @@ function TrueFalseQuestion({ question, ctx }: { question: PublicQuestion; ctx: C
       {[true, false].map((v) => {
         const selected = value === v;
         const isCorrect =
-          ctx.mode === "result" &&
+          showCorrect &&
           correct !== undefined &&
           (correct as { display: string[] }).display[0] === String(v);
         return (
           <button
             key={String(v)}
             type="button"
-            disabled={ctx.mode !== "play"}
+            disabled={locked}
             onClick={() => set(v)}
-            data-qb-focusable={ctx.mode === "play" ? true : undefined}
+            data-qb-focusable={!locked ? true : undefined}
             className="qb-choice flex-1 justify-center disabled:cursor-default"
             data-selected={selected}
             data-correct={isCorrect || undefined}
@@ -623,12 +635,14 @@ function EssayQuestion({ question, ctx }: { question: PublicQuestion; ctx: Ctx }
   const answer = ctx.answers[question.id];
   const text = answer && answer.kind === "essay" ? answer.text : "";
   const selfGrade = answer && answer.kind === "essay" ? answer.selfGrade : undefined;
+  const checked = ctx.checkedIds?.has(question.id) ?? false;
+  const locked = ctx.mode !== "play" || checked;
 
-  if (ctx.mode === "play") {
+  if (!locked) {
     return (
       <textarea
         className="mt-3 min-h-32 w-full rounded-lg border border-slate-300 bg-white p-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:border-slate-700 dark:bg-slate-900 dark:focus:ring-blue-900"
-        placeholder="解答を入力(提出後に模範解答を見て自己採点します)"
+        placeholder="解答を入力(答え合わせ・提出後に模範解答を見て自己採点します)"
         maxLength={10000}
         value={text}
         data-qb-focusable
@@ -649,7 +663,7 @@ function EssayQuestion({ question, ctx }: { question: PublicQuestion; ctx: Ctx }
       <p className="qb-book whitespace-pre-wrap">
         {text.trim() === "" ? <span className="text-slate-400">未回答</span> : text}
       </p>
-      {ctx.mode === "result" && (
+      {(ctx.mode === "result" || checked) && ctx.onSelfGrade && (
         <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-200 pt-3 dark:border-slate-700">
           <span className="text-xs text-slate-500 dark:text-slate-400">自己採点:</span>
           {(

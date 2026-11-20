@@ -19,6 +19,29 @@ function formatSeconds(total: number): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
+function answerRequests(
+  answer: QuestionAnswer,
+): Array<{ blankId: string | null; value: unknown }> {
+  if (answer.kind === "blanks") {
+    return Object.entries(answer.values).map(([blankId, text]) => ({
+      blankId,
+      value: { text },
+    }));
+  }
+  if (answer.kind === "choice") {
+    return [{ blankId: null, value: { choiceIds: answer.choiceIds } }];
+  }
+  if (answer.kind === "boolean") {
+    return [{ blankId: null, value: { boolean: answer.value } }];
+  }
+  return [
+    {
+      blankId: null,
+      value: { text: answer.text, ...(answer.selfGrade ? { selfGrade: answer.selfGrade } : {}) },
+    },
+  ];
+}
+
 export function ServerPlay({ attemptId }: { attemptId: string }) {
   const router = useRouter();
   const [state, setState] = useState<State>({ status: "loading" });
@@ -94,22 +117,7 @@ export function ServerPlay({ attemptId }: { attemptId: string }) {
       if (existing) clearTimeout(existing);
       const timer = setTimeout(() => {
         timersMap.delete(questionId);
-        const requests: Array<{ blankId: string | null; value: unknown }> = [];
-        if (answer.kind === "blanks") {
-          for (const [blankId, text] of Object.entries(answer.values)) {
-            requests.push({ blankId, value: { text } });
-          }
-        } else if (answer.kind === "choice") {
-          requests.push({ blankId: null, value: { choiceIds: answer.choiceIds } });
-        } else if (answer.kind === "boolean") {
-          requests.push({ blankId: null, value: { boolean: answer.value } });
-        } else {
-          requests.push({
-            blankId: null,
-            value: { text: answer.text, ...(answer.selfGrade ? { selfGrade: answer.selfGrade } : {}) },
-          });
-        }
-        for (const req of requests) {
+        for (const req of answerRequests(answer)) {
           void fetch(`/api/attempts/${attemptId}/answers`, {
             method: "PUT",
             headers: { "content-type": "application/json" },
@@ -128,6 +136,47 @@ export function ServerPlay({ attemptId }: { attemptId: string }) {
     [attemptId],
   );
 
+  /** 答え合わせの直前に、その設問の未保存回答を確定させる */
+  const flushAnswer = useCallback(
+    async (questionId: string): Promise<boolean> => {
+      const timersMap = timers.current;
+      const pending = timersMap.get(questionId);
+      if (pending) {
+        clearTimeout(pending);
+        timersMap.delete(questionId);
+      }
+
+      const answer = answers[questionId];
+      if (!answer) return true;
+
+      try {
+        const responses = await Promise.all(
+          answerRequests(answer).map((req) =>
+            fetch(`/api/attempts/${attemptId}/answers`, {
+              method: "PUT",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ questionId, blankId: req.blankId, value: req.value }),
+            }),
+          ),
+        );
+        for (const res of responses) {
+          if (!res.ok && res.status !== 409) {
+            const data = (await res.json().catch(() => ({}))) as {
+              error?: { message?: string };
+            };
+            setError(data.error?.message ?? "回答を保存できませんでした");
+            return false;
+          }
+        }
+        return true;
+      } catch {
+        setError("通信に失敗しました");
+        return false;
+      }
+    },
+    [answers, attemptId],
+  );
+
   const updateAnswer = useCallback(
     (questionId: string, answer: QuestionAnswer) => {
       setAnswers((prev) => {
@@ -141,14 +190,15 @@ export function ServerPlay({ attemptId }: { attemptId: string }) {
 
   const selfGrade = useCallback(
     (questionId: string, value: SelfGrade) => {
+      const canSync = finished || checked.has(questionId);
       setAnswers((prev) => {
         const current = prev[questionId];
         const answer: QuestionAnswer =
           current && current.kind === "essay"
             ? { ...current, selfGrade: value }
             : { kind: "essay", text: "", selfGrade: value };
-        if (finished) {
-          // 提出後も自己採点は更新できる(§7.5)。専用 API で再集計する
+        if (canSync) {
+          // 提出後・答え合わせ後も自己採点は更新できる(§7.5)。専用 API で再集計する
           void fetch(`/api/attempts/${attemptId}/self-grade`, {
             method: "POST",
             headers: { "content-type": "application/json" },
@@ -167,9 +217,7 @@ export function ServerPlay({ attemptId }: { attemptId: string }) {
         return { ...prev, [questionId]: answer };
       });
     },
-    // submit は下で定義するため、依存は実行時の参照で足りる
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [attemptId, finished],
+    [attemptId, checked, finished],
   );
 
   const submit = useCallback(
@@ -229,10 +277,11 @@ export function ServerPlay({ attemptId }: { attemptId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expired]);
 
-  /** 即時採点(練習モード + practiceFeedback。§7.7) */
+  /** 即時採点(練習モード + practiceFeedback。§7.7)。正解も取得して表示し、回答をロックする */
   const check = useCallback(
     async (questionId: string) => {
       setError(null);
+      if (!(await flushAnswer(questionId))) return;
       try {
         const res = await fetch(`/api/attempts/${attemptId}/check`, {
           method: "POST",
@@ -241,22 +290,23 @@ export function ServerPlay({ attemptId }: { attemptId: string }) {
         });
         const data = (await res.json()) as {
           question?: QuestionGrade;
-          explain?: Reveal["explain"];
-          model?: Reveal["model"];
+          reveal?: PlayReveal;
           error?: { message?: string };
         };
-        if (!res.ok || !data.question) {
+        const question = data.question;
+        const reveal = data.reveal;
+        if (!res.ok || !question || !reveal) {
           setError(data.error?.message ?? "答え合わせできませんでした");
           return;
         }
         setChecked((prev) => {
           const next = new Map(prev);
           next.set(questionId, {
-            grade: data.question!,
+            grade: question,
             reveal: {
-              answers: [],
-              ...(data.explain ? { explain: data.explain } : {}),
-              ...(data.model ? { model: data.model } : {}),
+              answers: reveal.answers,
+              ...(reveal.explain ? { explain: reveal.explain } : {}),
+              ...(reveal.model ? { model: reveal.model } : {}),
             },
           });
           return next;
@@ -265,7 +315,7 @@ export function ServerPlay({ attemptId }: { attemptId: string }) {
         setError("通信に失敗しました");
       }
     },
-    [attemptId],
+    [attemptId, flushAnswer],
   );
 
   /** 受験の中断(§7.4)。採点しない */

@@ -152,7 +152,7 @@ const result = toResult(ast);
 
 - 受験履歴と学習統計(`/dashboard`、`/api/me/attempts`、`/api/me/stats`)
 - ブックマーク(ブック単位・設問単位)
-- 練習モードの即時採点(設問ごとの「答え合わせ」。`practiceFeedback: true` のブックのみ)
+- 練習モードの即時採点(設問ごとの「答え合わせ」。正解・解説を表示して回答欄をロック。`practiceFeedback: true` のブックのみ)
 - 受験の中断、essay の自己採点(提出後も変更可)、結果・復習画面
 - 作者向け統計(受験数・平均正答率・設問別の正答率)
 
