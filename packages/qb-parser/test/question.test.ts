@@ -110,6 +110,54 @@ test("points の範囲は QB-E007", () => {
   assert.equal(hasCode(q(`@q points=abc id=q_p000003\n[[a]]\n@end`), "QB-E007"), true);
 });
 
+test("points 未指定は空欄の重みの合計になる", () => {
+  const r = q(`@q id=q_pw00001
+[[a]]{w=2} と [[b]] と [[c]]{w=0.5}
+@end`);
+  assert.equal(r.hasErrors, false, JSON.stringify(r.diagnostics));
+  assert.equal(onlyQuestion(r).points, 3.5);
+});
+
+test("points=-1 も空欄の重みの合計になる", () => {
+  const r = q(`@q points=-1 id=q_pw00002
+[[a]]{w=3} と [[b]]{w=4}
+@end`);
+  assert.equal(r.hasErrors, false, JSON.stringify(r.diagnostics));
+  assert.equal(onlyQuestion(r).points, 7);
+});
+
+test("points の明示は空欄の重み合計より優先される", () => {
+  const r = q(`@q points=5 id=q_pw00003
+[[a]]{w=3} と [[b]]{w=4}
+@end`);
+  assert.equal(r.hasErrors, false, JSON.stringify(r.diagnostics));
+  assert.equal(onlyQuestion(r).points, 5);
+});
+
+test("小数の重みも浮動小数点誤差なく合計する", () => {
+  const r = q(`@q id=q_pw00004
+[[a]]{w=0.1} と [[b]]{w=0.2}
+@end`);
+  assert.equal(r.hasErrors, false, JSON.stringify(r.diagnostics));
+  assert.equal(onlyQuestion(r).points, 0.3);
+});
+
+test("空欄のない設問は points 未指定でも 1 点", () => {
+  const r = q(`@q type=truefalse answer=true id=q_pw00005
+本文
+@end`);
+  assert.equal(r.hasErrors, false, JSON.stringify(r.diagnostics));
+  assert.equal(onlyQuestion(r).points, 1);
+});
+
+test("空欄の重み合計が上限を超えると QB-E007", () => {
+  const blanks = Array.from({ length: 2 }, (_, i) => `[[b${i}]]{w=600}`).join(" と ");
+  const r = q(`@q id=q_pw00006
+${blanks}
+@end`);
+  assert.equal(hasCode(r, "QB-E007"), true);
+});
+
 test("未知の @q 属性・型は QB-E010", () => {
   assert.equal(hasCode(q(`@q foo=1 id=q_x000001\n[[a]]\n@end`), "QB-E010"), true);
   assert.equal(hasCode(q(`@q type=unknown id=q_x000002\n[[a]]\n@end`), "QB-E010"), true);

@@ -172,7 +172,8 @@ test("@q ブロック内の空欄は 1 問にまとまる", () => {
   assert.equal(r.hasErrors, false, JSON.stringify(r.diagnostics));
   const q = onlyQuestion(r);
   assert.equal(q.auto, false);
-  assert.equal(q.points, 1);
+  // points 未指定は空欄の重み合計(既定の重み 1 × 2)
+  assert.equal(q.points, 2);
 });
 
 test("@q の外の段落で空欄が複数でも 1 問(部分点)", () => {

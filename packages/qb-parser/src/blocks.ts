@@ -7,6 +7,7 @@
  */
 
 import type {
+  BlankInline,
   Block,
   Choice,
   ImageBlock,
@@ -25,6 +26,12 @@ import { isWellFormedId } from "./ids.ts";
 import { parseInline, takeTrailingAttr, toInline, hasBlank } from "./inline.ts";
 import { parseAttributeText, type AttrPair } from "./blank.ts";
 import { collectBlanks } from "./types.ts";
+import {
+  decimalToPlainString,
+  formatNumberLiteral,
+  parseDecimal,
+  type DecimalParts,
+} from "./decimal.ts";
 
 const MAX_QUESTION_POINTS = 1000;
 const MAX_QUESTIONS = 2000;
@@ -565,6 +572,26 @@ function parseList(
 
 const Q_KEYS = new Set(["id", "type", "points", "tags", "scoring", "answer"]);
 
+/** 空欄の重みを 10 進で厳密に合計する(0.1 + 0.2 の浮動小数点誤差を避ける) */
+function totalBlankWeight(blanks: BlankInline[]): number {
+  if (blanks.length === 0) return 0;
+  const parts: DecimalParts[] = [];
+  for (const blank of blanks) {
+    const parsed = parseDecimal(formatNumberLiteral(blank.weight));
+    if (parsed) parts.push(parsed);
+  }
+  if (parts.length === 0) return 0;
+  const minExp = Math.min(...parts.map((p) => p.exp));
+  let total = 0n;
+  for (const part of parts) {
+    const v = BigInt(part.digits) * 10n ** BigInt(part.exp - minExp);
+    total += part.sign < 0 ? -v : v;
+  }
+  const sign: 1 | -1 = total < 0n ? -1 : 1;
+  const digits = (total < 0n ? -total : total).toString();
+  return Number(decimalToPlainString({ sign, digits, exp: minExp }));
+}
+
 function parseQuestionBlock(
   ctx: ParseContext,
   lines: Line[],
@@ -675,17 +702,6 @@ function parseQuestionBlock(
     ctx.diags.error("QB-E010", kindAttr.offset, `設問タイプ \`${kindText}\` は不明です`);
   }
 
-  let points = 1;
-  const pointsAttr = attrMap.get("points");
-  if (pointsAttr) {
-    const n = Number(pointsAttr.value);
-    if (!Number.isFinite(n) || n <= 0 || n > MAX_QUESTION_POINTS) {
-      ctx.diags.error("QB-E007", pointsAttr.offset, `points \`${pointsAttr.value}\` は 0 より大きく 1000 以下です`);
-    } else {
-      points = n;
-    }
-  }
-
   const tags = (attrMap.get("tags")?.value ?? "")
     .split(",")
     .map((t) => t.trim())
@@ -738,6 +754,30 @@ function parseQuestionBlock(
     if (collectBlanks(questionBody).length === 0) {
       ctx.diags.error("QB-E008", header.start, "空欄が 1 つもない空欄設問です");
     }
+  }
+
+  // points 未指定(`points=-1` も同じ)は、設問内の空欄の重み合計を配点にする。
+  // 空欄を持たない設問(選択・真偽・記述)は従来どおり 1 点。
+  let points: number;
+  const pointsAttr = attrMap.get("points");
+  const pointsValue = pointsAttr ? Number(pointsAttr.value) : -1;
+  if (!pointsAttr || pointsValue === -1) {
+    const weightSum = kind === "blank" ? totalBlankWeight(collectBlanks(questionBody)) : 0;
+    if (weightSum > MAX_QUESTION_POINTS) {
+      ctx.diags.error(
+        "QB-E007",
+        pointsAttr?.offset ?? header.start,
+        `空欄の重みの合計(${weightSum})が上限(${MAX_QUESTION_POINTS})を超えています`,
+      );
+      points = MAX_QUESTION_POINTS;
+    } else {
+      points = weightSum > 0 ? weightSum : 1;
+    }
+  } else if (!Number.isFinite(pointsValue) || pointsValue <= 0 || pointsValue > MAX_QUESTION_POINTS) {
+    ctx.diags.error("QB-E007", pointsAttr.offset, `points \`${pointsAttr.value}\` は 0 より大きく 1000 以下です`);
+    points = 1;
+  } else {
+    points = pointsValue;
   }
 
   const idAttr = attrMap.get("id");
