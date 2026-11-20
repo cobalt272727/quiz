@@ -280,6 +280,7 @@ normalize: { kana: false }
 | `[[...]]{id=.. w=..}` | 空欄への属性(`id`: 空欄ID、`w`: 配点の重み、既定 1) |
 | `{qid=..}` | 自動設問(`@q` に包まれない空欄のブロック)の設問ID。段落・リスト項目の末尾、表の行は最終セルの末尾に置く |
 | `@q ... @end` | 設問ブロック(属性: id, type, points, tags, scoring, answer) |
+| `@text ... @end` | 表示専用ブロック。中の Markdown 記法は解釈するが、`[[...]]` は空欄にせず文字として扱い、設問を生成しない。受験画面・結果画面にも表示される |
 | `@explain` | 解説(設問ブロック内) |
 | `@hint` | ヒント(設問ブロック内) |
 | `@model` | 模範解答(`essay` のみ) |
@@ -291,6 +292,8 @@ normalize: { kana: false }
 ※この表内の `\|` は、仕様書の表を壊さないためのエスケープ。本文中では、区切りは単に `|` と書く(表セル内の書き方は §4.7)。
 
 **`{qid=..}` と `{id=..}` を分けた理由**: 段落末尾の空欄 `[[答]]{id=b_xxx}` の直後に設問ID属性が続く場合(`[[答]]{id=b_xxx} {qid=q_yyy}`)、同じキー名では空欄属性との区別が文字列の接頭辞頼みになるため、キーで区別する。`{qid=..}` は空欄を1つ以上含むブロックにのみ付与できる(それ以外は QB-E010)。
+
+**`@text` の扱い**: `@text` 内の空欄記法は文字として表示し、ID の付与・設問の生成・採点の対象にしない。`@text` の中で `@q` は書けない(QB-E010)。コードブロック内の `@end` は `@text` の終端として扱わない。出題順をシャッフルしても `@text` は記述位置に残り、設問だけを入れ替える。
 
 **廃止**: v0.1 の `{{答}}` は廃止した。使用するとエラー `QB-E006`(「`[[答]]` を使ってください」)を返す。
 
@@ -463,6 +466,7 @@ type Block =
   | { type: "math"; v: string }                                  // $$...$$
   | { type: "image"; assetId?: string; src?: string; alt: string; caption?: string; width?: number }
   | { type: "table"; header: Inline[][]; rows: Inline[][][] }    // 行 → セル → Inline[]
+  | { type: "text"; body: Block[] }                             // @text 表示専用(設問を生成しない)
   | { type: "question"; id: string; kind: QKind; points: number; tags: string[];
       auto: boolean;                                             // @q なしで自動生成された設問
       body: Block[];                                             // 段落・表・画像など

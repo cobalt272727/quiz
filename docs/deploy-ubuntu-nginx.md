@@ -89,7 +89,7 @@ SQL
 sudo adduser --system --group --home /srv/qb qb
 sudo -u qb -H bash -lc '
   cd /srv/qb
-  git clone https://example.com/your-repo.git app
+  git clone https://github.com/cobalt272727/quiz.git app
 '
 ```
 
@@ -103,9 +103,13 @@ sudo -u qb -H bash -lc '
 └── backups/          pg_dump の出力先
 ```
 
+**すべてのディレクトリを先に作る**(`shared` を作り忘れると §4 の `tee` が
+`No such file or directory` で失敗する):
+
 ```bash
-sudo -u qb mkdir -p /srv/qb/data/uploads /srv/qb/backups
-sudo -u qb chmod 700 /srv/qb/data/uploads /srv/qb/backups
+sudo -u qb mkdir -p /srv/qb/shared /srv/qb/data/uploads /srv/qb/backups
+sudo -u qb chmod 700 /srv/qb/shared /srv/qb/data/uploads /srv/qb/backups
+sudo ls -ld /srv/qb /srv/qb/shared /srv/qb/data/uploads /srv/qb/backups
 ```
 
 ---
@@ -130,23 +134,43 @@ CRON_SECRET="下記で生成した 32 バイトの乱数"
 ```
 
 ```bash
-# シークレットの生成
+# シークレットを生成して控える(64 文字の 16 進)
 openssl rand -hex 32
 
+# 上の値を CRON_SECRET に、DB のパスワードを DATABASE_URL に入れて書き込む。
+# ヒアドキュメント内は変数展開されないため、実際の値に置き換えてから実行する。
 sudo -u qb tee /srv/qb/shared/.env >/dev/null <<'EOF'
-…上記の内容…
+NODE_ENV=production
+DATABASE_URL="postgresql://qb:DBのパスワード@127.0.0.1:5432/qb?schema=public"
+APP_URL="https://quiz.example.com"
+OPERATOR_NAME="問題ブック運営"
+
+UPLOAD_DIR="/srv/qb/data/uploads"
+SESSION_TTL_DAYS=30
+SUBMIT_GRACE_SECONDS=5
+GUEST_ATTEMPT_TTL_DAYS=7
+BOOK_RETENTION_DAYS=30
+ANSWER_MAX_CHARS=10000
+ALLOW_EXTERNAL_IMAGES=false
+
+CRON_SECRET="openssl rand -hex 32 の出力"
 EOF
-sudo chmod 600 /srv/qb/shared/.env
+
 sudo chown qb:qb /srv/qb/shared/.env
+sudo chmod 600 /srv/qb/shared/.env
+
+# 確認(所有者・権限・中身)
+sudo ls -l /srv/qb/shared/.env
+sudo -u qb cat /srv/qb/shared/.env
 ```
 
-| 変数 | 役割 | 本番での注意 |
-|---|---|---|
-| `DATABASE_URL` | PostgreSQL 接続 | `127.0.0.1` を指定し、外部公開しない |
-| `APP_URL` | OGP・canonical の絶対 URL | **必ず本番の https URL**。誤ると共有カードのリンクが壊れる |
-| `UPLOAD_DIR` | 画像の保存先 | systemd の `ReadWritePaths` と一致させる |
-| `CRON_SECRET` | 回収 API の認証 | 既定値のままにしない |
-| `ALLOW_EXTERNAL_IMAGES` | 外部画像の許可 | 既定 `false`(SSRF・トラッキング対策) |
+| 変数                      | 役割                      | 本番での注意                                                     |
+| ------------------------- | ------------------------- | ---------------------------------------------------------------- |
+| `DATABASE_URL`          | PostgreSQL 接続           | `127.0.0.1` を指定し、外部公開しない                           |
+| `APP_URL`               | OGP・canonical の絶対 URL | **必ず本番の https URL**。誤ると共有カードのリンクが壊れる |
+| `UPLOAD_DIR`            | 画像の保存先              | systemd の `ReadWritePaths` と一致させる                       |
+| `CRON_SECRET`           | 回収 API の認証           | 既定値のままにしない                                             |
+| `ALLOW_EXTERNAL_IMAGES` | 外部画像の許可            | 既定 `false`(SSRF・トラッキング対策)                           |
 
 ---
 
@@ -516,16 +540,16 @@ pnpm admin:grant <loginId> --revoke
 
 ## 13. トラブルシューティング
 
-| 症状 | 確認点 |
-|---|---|
-| 502 Bad Gateway | `systemctl status qb-web`、`journalctl -u qb-web -n 100`、ポート 3100 の待受 |
-| ログインで 429 | 試行制限。`RateLimit` テーブルの該当キーを削除するか、時間を置く |
-| 画像が 404 | `UPLOAD_DIR` のパスと systemd の `ReadWritePaths`、`uploads/books/<bookId>/` の存在 |
-| 画像アップロードが 413 | nginx の `client_max_body_size`(12m 以上) |
-| OGP の URL が localhost | `.env` の `APP_URL` が本番 URL か。変更後は再起動が必要 |
-| 共有カードが出ない | `/b/<id>` が公開ブックか(`visibility=public`)、`og:title`/`og:image` の有無 |
-| cron が 501 | `CRON_SECRET` 未設定。403 なら値の不一致(引用符を含めない) |
-| ビルドで `re2` が失敗 | `build-essential python3` を入れ、`pnpm rebuild re2` |
+| 症状                           | 確認点                                                                                                          |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| 502 Bad Gateway                | `systemctl status qb-web`、`journalctl -u qb-web -n 100`、ポート 3100 の待受                                |
+| ログインで 429                 | 試行制限。`RateLimit` テーブルの該当キーを削除するか、時間を置く                                              |
+| 画像が 404                     | `UPLOAD_DIR` のパスと systemd の `ReadWritePaths`、`uploads/books/<bookId>/` の存在                       |
+| 画像アップロードが 413         | nginx の `client_max_body_size`(12m 以上)                                                                     |
+| OGP の URL が localhost        | `.env` の `APP_URL` が本番 URL か。変更後は再起動が必要                                                     |
+| 共有カードが出ない             | `/b/<id>` が公開ブックか(`visibility=public`)、`og:title`/`og:image` の有無                             |
+| cron が 501                    | `CRON_SECRET` 未設定。403 なら値の不一致(引用符を含めない)                                                    |
+| ビルドで `re2` が失敗        | `build-essential python3` を入れ、`pnpm rebuild re2`                                                        |
 | マイグレーションで索引が消えた | `prisma migrate diff` の出力に `DROP INDEX` が無いか確認。手動索引はマイグレーション SQL に追記して復元する |
 
 ---

@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { arrangePlayBlocks } from "@qb/parser";
 import { loadResult } from "@/lib/attempts";
 import { currentActor } from "@/lib/guest";
 import { AstView } from "@/components/AstView";
 import { SelfGradeControls } from "@/components/SelfGradeControls";
-import type { PublicBlock, PublicQuestion } from "@qb/parser";
+import type { PublicQuestion } from "@qb/parser";
 import type { Reveal } from "@/lib/book";
 
 export const dynamic = "force-dynamic";
@@ -54,6 +55,8 @@ export default async function ResultPage({ params }: { params: Promise<{ id: str
   );
   const results = new Map(result.grade.questions.map((q) => [q.questionId, q]));
   const reviewSet = new Set(result.grade.reviewQuestionIds);
+  // 受験画面と同じ並び(`@text` を残し、設問は出題順)で表示する
+  const displayBlocks = arrangePlayBlocks(result.blocks, result.order);
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
@@ -129,7 +132,7 @@ export default async function ResultPage({ params }: { params: Promise<{ id: str
 
       <div className="qb-book mt-8">
         <AstView
-          blocks={ordered as unknown as PublicBlock[]}
+          blocks={displayBlocks}
           mode="result"
           answers={result.answers}
           results={results}

@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { AttemptGrade, PublicBlock, PublicQuestion, QuestionGrade, SelfGrade } from "@qb/parser";
+import { arrangePlayBlocks } from "@qb/parser";
+import type { AttemptGrade, PublicBlock, QuestionGrade, SelfGrade } from "@qb/parser";
 import { AstView } from "@/components/AstView";
 import { mulberry32, type QuestionAnswer, type Reveal } from "@/lib/book";
 import type { PlayReveal, PlayState } from "@/lib/attempts";
@@ -61,9 +62,20 @@ export function ServerPlay({ attemptId }: { attemptId: string }) {
 
   const ready = state.status === "ready" ? state.data : null;
   const finished = Boolean(ready?.result);
+  /** 中断済み(§7.4)。採点されないため結果画面はない */
+  const abandoned = ready?.attempt.status === "abandoned";
+  /** 中断後の戻り先(ゲストはトップ、ログイン済みは学習ダッシュボード) */
+  const abandonedHref = ready?.attempt.guest ? "/" : "/dashboard";
+  const abandonedLabel = ready?.attempt.guest ? "トップへ" : "学習ダッシュボードへ";
   const timeLimit = ready?.book.timeLimit ?? null;
   const startedAt = ready ? new Date(ready.attempt.startedAt).getTime() : 0;
   const deadline = timeLimit ? startedAt + timeLimit * 1000 : null;
+
+  // 中断済みの受験を開いた/中断した場合は、そのまま表示せず戻り先へリダイレクトする
+  useEffect(() => {
+    if (!abandoned) return;
+    router.replace(abandonedHref);
+  }, [abandoned, abandonedHref, router]);
 
   useEffect(() => {
     if (!deadline || finished) return;
@@ -318,20 +330,10 @@ export function ServerPlay({ attemptId }: { attemptId: string }) {
     }
   };
 
-  const questionMap = useMemo(() => {
-    const map = new Map<string, PublicQuestion>();
-    for (const block of ready?.book.blocks ?? []) {
-      if (block.type === "question") map.set(block.id, block);
-    }
-    return map;
-  }, [ready]);
-
   const playBlocks = useMemo(() => {
     if (!ready) return [] as PublicBlock[];
-    return ready.order
-      .map((id) => questionMap.get(id))
-      .filter((q): q is PublicQuestion => Boolean(q));
-  }, [ready, questionMap]);
+    return arrangePlayBlocks(ready.book.blocks, ready.order);
+  }, [ready]);
 
   const choiceOrder = useMemo(() => {
     const map = new Map<string, string[]>();
@@ -398,6 +400,19 @@ export function ServerPlay({ attemptId }: { attemptId: string }) {
         <p className="mt-2 text-sm text-rose-700 dark:text-rose-300">{state.message}</p>
         <Link href="/library" className="mt-6 inline-block text-blue-600 underline dark:text-blue-400">
           マイブックへ
+        </Link>
+      </div>
+    );
+  }
+  if (abandoned) {
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-12">
+        <h1 className="text-xl font-bold">受験を中断しました</h1>
+        <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+          中断した受験は採点されません。
+        </p>
+        <Link href={abandonedHref} className="mt-6 inline-block text-blue-600 underline dark:text-blue-400">
+          {abandonedLabel}
         </Link>
       </div>
     );

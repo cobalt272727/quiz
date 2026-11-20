@@ -17,6 +17,7 @@ import type {
   QKind,
   QuestionBlock,
   TableBlock,
+  TextBlock,
 } from "./types.ts";
 import type { ParseContext } from "./parse-context.ts";
 import { addWrite, newId, reserveId, isIdTaken } from "./parse-context.ts";
@@ -30,7 +31,13 @@ const MAX_QUESTIONS = 2000;
 
 type Line = { text: string; start: number };
 
-export type BlockParseOptions = { inQuestion: boolean };
+export type BlockParseOptions = {
+  inQuestion: boolean;
+  /** 空欄・属性を解析せず文字として扱う(`@text` 用) */
+  noQb?: boolean;
+  /** `@text` の内側 */
+  inText?: boolean;
+};
 
 export function splitLines(src: string, start: number, end: number): Line[] {
   const out: Line[] = [];
@@ -65,7 +72,7 @@ function matchHeading(text: string): { level: number; text: string } | null {
 }
 
 function matchDirective(text: string): { name: string; rest: string; restOffset: number } | null {
-  const m = /^@(q|end|explain|hint|model)(?:[ \t]+(.*?))?[ \t]*$/.exec(text);
+  const m = /^@(q|text|end|explain|hint|model)(?:[ \t]+(.*?))?[ \t]*$/.exec(text);
   if (!m) return null;
   const restRaw = m[2] ?? "";
   return { name: m[1], rest: restRaw, restOffset: m[0].length - restRaw.length };
@@ -202,6 +209,12 @@ function parseBlocksFromLines(
         i = parsed.next;
         continue;
       }
+      if (directive.name === "text") {
+        const parsed = parseTextBlock(ctx, lines, i);
+        if (parsed.block) blocks.push(parsed.block);
+        i = parsed.next;
+        continue;
+      }
       ctx.diags.error(
         "QB-E010",
         line.start,
@@ -253,7 +266,7 @@ function parseBlocksFromLines(
     }
 
     if (isTableStart(lines, i)) {
-      const parsed = parseTable(ctx, lines, i);
+      const parsed = parseTable(ctx, lines, i, opts);
       blocks.push(parsed.block);
       i = parsed.next;
       continue;
@@ -302,7 +315,7 @@ function makeParagraph(
   baseOffset: number,
   opts: BlockParseOptions,
 ): ParagraphBlock {
-  const tokens = parseInline(ctx, text, baseOffset);
+  const tokens = parseInline(ctx, text, baseOffset, opts.noQb ? { noQb: true } : {});
   const block: ParagraphBlock = { type: "paragraph", c: toInline(tokens) };
   if (opts.inQuestion) {
     reportStrayQid(ctx, tokens);
@@ -407,10 +420,11 @@ function parseTable(
   ctx: ParseContext,
   lines: Line[],
   i: number,
+  opts: BlockParseOptions,
 ): { block: TableBlock; next: number } {
   const headerLine = lines[i];
   const headerCells = splitTableCells(headerLine);
-  const header = headerCells.map((cell) => parseTableCell(ctx, cell));
+  const header = headerCells.map((cell) => parseTableCell(ctx, cell, opts));
   const rows: Inline[][][] = [];
   const rowTokens: InlineToken[][][] = [];
   const rowEnds: number[] = [];
@@ -433,7 +447,10 @@ function parseTable(
     const parsedCells: Inline[][] = [];
     const cellTokens: InlineToken[][] = [];
     for (const cell of cells) {
-      const tokens = parseInline(ctx, cell.text.trim(), cell.offset + leadingSpace(cell.text), { table: true });
+      const tokens = parseInline(ctx, cell.text.trim(), cell.offset + leadingSpace(cell.text), {
+        table: true,
+        ...(opts.noQb ? { noQb: true } : {}),
+      });
       parsedCells.push(toInline(tokens));
       cellTokens.push(tokens);
     }
@@ -462,8 +479,11 @@ function leadingSpace(s: string): number {
   return s.length - s.trimStart().length;
 }
 
-function parseTableCell(ctx: ParseContext, cell: Cell): Inline[] {
-  const tokens = parseInline(ctx, cell.text.trim(), cell.offset + leadingSpace(cell.text), { table: true });
+function parseTableCell(ctx: ParseContext, cell: Cell, opts: BlockParseOptions): Inline[] {
+  const tokens = parseInline(ctx, cell.text.trim(), cell.offset + leadingSpace(cell.text), {
+    table: true,
+    ...(opts.noQb ? { noQb: true } : {}),
+  });
   return toInline(tokens);
 }
 
@@ -499,7 +519,7 @@ function parseList(
       content = content.slice(cb[0].length);
     }
     const contentOffset = line.start + item.contentOffset + (item.content.length - content.length);
-    const tokens = parseInline(ctx, content, contentOffset);
+    const tokens = parseInline(ctx, content, contentOffset, opts.noQb ? { noQb: true } : {});
     const paragraph: ParagraphBlock = { type: "paragraph", c: toInline(tokens) };
     ctx.blockEnd.set(paragraph, line.start + line.text.trimEnd().length);
     ctx.blockStart.set(paragraph, line.start + item.contentOffset);
@@ -514,7 +534,7 @@ function parseList(
     while (k < lines.length && !isBlankLine(lines[k].text) && !matchListItem(lines[k].text) && !startsNewBlock(lines, k)) {
       const cont = lines[k];
       const text = cont.text.replace(/^[ \t]*>[ \t]?/, "");
-      const contTokens = parseInline(ctx, text, cont.start);
+      const contTokens = parseInline(ctx, text, cont.start, opts.noQb ? { noQb: true } : {});
       const contBlock: ParagraphBlock = { type: "paragraph", c: toInline(contTokens) };
       ctx.blockEnd.set(contBlock, cont.start + cont.text.trimEnd().length);
       ctx.blockStart.set(contBlock, cont.start);
@@ -554,7 +574,9 @@ function parseQuestionBlock(
   const header = lines[i];
   const directive = matchDirective(header.text)!;
 
-  if (opts.inQuestion) {
+  if (opts.inText) {
+    ctx.diags.error("QB-E010", header.start, "`@text` の中に `@q` は書けません");
+  } else if (opts.inQuestion) {
     ctx.diags.error("QB-E010", header.start, "`@q` を入れ子にすることはできません");
   }
 
@@ -577,10 +599,26 @@ function parseQuestionBlock(
   const sections: Section[] = [{ kind: "body", from: i + 1, to: lines.length }];
   let depth = 0;
   let endLine = -1;
+  let inFence = false;
+  let fenceChar = "";
+  let fenceLen = 0;
   for (let j = i + 1; j < lines.length; j++) {
-    const d = matchDirective(lines[j].text);
+    const text = lines[j].text;
+    const fence = matchFence(text);
+    if (inFence) {
+      if (fence && fence.fence[0] === fenceChar && fence.fence.length >= fenceLen) inFence = false;
+      continue;
+    }
+    if (fence) {
+      inFence = true;
+      fenceChar = fence.fence[0];
+      fenceLen = fence.fence.length;
+      continue;
+    }
+    const d = matchDirective(text);
     if (!d) continue;
-    if (d.name === "q") {
+    // 入れ子の @text は @end を消費するので、対応する @end を数える
+    if (d.name === "q" || d.name === "text") {
       depth++;
       continue;
     }
@@ -606,13 +644,24 @@ function parseQuestionBlock(
 
   const bodyStart = sections[0].to > i ? lineOffsetAt(lines, i + 1) : lineEnd(header) + 1;
   const bodyEnd = sections[0].to < lines.length ? lines[sections[0].to].start : ctx.src.length;
-  const body = parseBlocks(ctx, bodyStart, bodyEnd, { inQuestion: true });
+  const body = parseBlocks(ctx, bodyStart, bodyEnd, {
+    inQuestion: true,
+    ...(opts.noQb ? { noQb: true } : {}),
+    ...(opts.inText ? { inText: true } : {}),
+  });
 
   const sectionBlocks = new Map<string, Block[]>();
   for (const s of sections.slice(1)) {
     const from = lineOffsetAt(lines, s.from);
     const to = s.to < lines.length ? lines[s.to].start : ctx.src.length;
-    sectionBlocks.set(s.kind, parseBlocks(ctx, from, to, { inQuestion: true }));
+    sectionBlocks.set(
+      s.kind,
+      parseBlocks(ctx, from, to, {
+        inQuestion: true,
+        ...(opts.noQb ? { noQb: true } : {}),
+        ...(opts.inText ? { inText: true } : {}),
+      }),
+    );
   }
 
   const kindAttr = attrMap.get("type");
@@ -738,6 +787,78 @@ function parseQuestionBlock(
   }
 
   return { block, next: endLine + 1 };
+}
+
+/* ------------------------------------------------------------------ */
+/* @text 表示専用ブロック                                                */
+/* ------------------------------------------------------------------ */
+
+/**
+ * `@text ... @end` を解析する(表示専用)。
+ *
+ * 中の Markdown 記法は解釈するが、`[[...]]`・`{id=...}` は文字として扱い、
+ * 空欄・設問を生成しない。受験画面にもそのまま表示される。
+ */
+function parseTextBlock(
+  ctx: ParseContext,
+  lines: Line[],
+  i: number,
+): { block: TextBlock | null; next: number } {
+  const header = lines[i];
+  const directive = matchDirective(header.text)!;
+  if (directive.rest.trim() !== "") {
+    ctx.diags.error("QB-E010", header.start, "`@text` に属性は指定できません");
+  }
+
+  let depth = 0;
+  let endLine = -1;
+  let inFence = false;
+  let fenceChar = "";
+  let fenceLen = 0;
+  for (let j = i + 1; j < lines.length; j++) {
+    const text = lines[j].text;
+    const fence = matchFence(text);
+    if (inFence) {
+      if (fence && fence.fence[0] === fenceChar && fence.fence.length >= fenceLen) inFence = false;
+      continue;
+    }
+    if (fence) {
+      inFence = true;
+      fenceChar = fence.fence[0];
+      fenceLen = fence.fence.length;
+      continue;
+    }
+    const d = matchDirective(text);
+    if (!d) continue;
+    // 入れ子の @q / @text の @end を外側の終端と取り違えない
+    if (d.name === "q" || d.name === "text") {
+      depth++;
+      continue;
+    }
+    if (d.name === "end") {
+      if (depth > 0) {
+        depth--;
+        continue;
+      }
+      endLine = j;
+      break;
+    }
+  }
+
+  if (endLine < 0) {
+    ctx.diags.error("QB-E002", header.start, "`@text` が `@end` で閉じられていません");
+    endLine = lines.length;
+  }
+
+  const bodyStart = lineOffsetAt(lines, i + 1);
+  const bodyEnd = endLine < lines.length ? lines[endLine].start : ctx.src.length;
+  const body = parseBlocks(ctx, bodyStart, bodyEnd, {
+    inQuestion: true,
+    inText: true,
+    noQb: true,
+  });
+
+  return { block: { type: "text", body }, next: endLine + 1 };
 }
 
 function lineOffsetAt(lines: Line[], index: number): number {

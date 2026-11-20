@@ -122,6 +122,13 @@ function BlockView({ block, ctx }: { block: PublicBlock; ctx: Ctx }) {
           <InlineList inlines={block.c} ctx={ctx} />
         </p>
       );
+    case "text":
+      // 表示専用ブロック(§4.2)。設問を作らず、受験画面にもそのまま出す
+      return (
+        <section className="qb-text">
+          <BlockList blocks={block.body} ctx={ctx} />
+        </section>
+      );
     case "code":
       return (
         <pre>

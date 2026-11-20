@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { parse, collectQuestions, toPublic } from "@qb/parser";
-import type { AttemptGrade, BookAst, PublicQuestion, SelfGrade } from "@qb/parser";
+import { arrangePlayBlocks, parse, collectQuestions, toPublic } from "@qb/parser";
+import type { AttemptGrade, BookAst, SelfGrade } from "@qb/parser";
 import { AstView } from "@/components/AstView";
 import {
   buildReveals,
@@ -167,24 +167,13 @@ export function PlayView() {
   const reveals = useMemo(() => (ready ? buildReveals(ready.ast) : new Map()), [ready]);
   const results = useMemo(() => (grade ? resultMap(grade) : new Map()), [grade]);
 
-  const publicQuestions = useMemo(() => {
-    if (!ready) return new Map<string, PublicQuestion>();
-    const map = new Map<string, PublicQuestion>();
-    const walk = (blocks: typeof ready.publicBlocks) => {
-      for (const b of blocks) {
-        if (b.type === "question") map.set(b.id, b);
-      }
-    };
-    walk(ready.publicBlocks);
-    return map;
-  }, [ready]);
-
   const playBlocks = useMemo(() => {
     if (!ready) return [];
-    return ready.plan.questions
-      .map((q) => publicQuestions.get(q.id))
-      .filter((q): q is PublicQuestion => Boolean(q));
-  }, [ready, publicQuestions]);
+    return arrangePlayBlocks(
+      ready.publicBlocks,
+      ready.plan.questions.map((q) => q.id),
+    );
+  }, [ready]);
 
   const blankOrder = useMemo(() => {
     // 選択肢空欄は選択肢シャッフルの対象(§5.3)。値は作者記述順のインデックス

@@ -6,7 +6,7 @@
  */
 
 /** AST 構造のバージョン。構造を変えたときだけ上げる(§5.4) */
-export const AST_VERSION = 1;
+export const AST_VERSION = 2;
 
 /** パーサ実装のバージョン。astVersion と混同しない(§5.4) */
 export const PARSER_VERSION = "0.1.0";
@@ -86,6 +86,8 @@ export type ImageBlock = {
   width?: number;
 };
 export type TableBlock = { type: "table"; header: Inline[][]; rows: Inline[][][] };
+/** 表示専用ブロック(`@text`)。中の空欄記法は文字として扱い、設問にしない */
+export type TextBlock = { type: "text"; body: Block[] };
 
 export type Choice = {
   id: string;
@@ -122,6 +124,7 @@ export type Block =
   | MathBlock
   | ImageBlock
   | TableBlock
+  | TextBlock
   | QuestionBlock;
 
 export type BookAst = {

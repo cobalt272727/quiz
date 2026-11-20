@@ -73,6 +73,8 @@ export type PlayState = {
     startedAt: string;
     deadlineAt: string | null;
     bookVersion: number;
+    /** ゲスト受験(ログインユーザーに紐づかない)か */
+    guest: boolean;
     /** 送信可能な最終時刻(期限 + 猶予) */
     submitBy: string | null;
   };
@@ -320,6 +322,7 @@ export async function loadPlayState(
       startedAt: attempt.startedAt.toISOString(),
       deadlineAt: attempt.deadlineAt ? attempt.deadlineAt.toISOString() : null,
       bookVersion: attempt.bookVersion,
+      guest: !attempt.userId,
       submitBy: submitDeadline(attempt)?.toISOString() ?? null,
     },
     book: {

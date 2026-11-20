@@ -134,6 +134,7 @@ function collectAssetRefs(blocks: Block[]): string[] {
         if (b.explain) walk(b.explain);
         if (b.hint) walk(b.hint);
       } else if (b.type === "list") b.items.forEach(walk);
+      else if (b.type === "text") walk(b.body);
     }
   };
   walk(blocks);

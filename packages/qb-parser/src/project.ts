@@ -58,6 +58,7 @@ export type PublicBlock =
       width?: number;
     }
   | { type: "table"; header: PublicInline[][]; rows: PublicInline[][][] }
+  | { type: "text"; body: PublicBlock[] }
   | PublicQuestion;
 
 export type PublicBook = {
@@ -127,6 +128,8 @@ export function toPublicBlock(block: PublicBlockSource): PublicBlock {
       };
     case "table":
       return toPublicTable(block);
+    case "text":
+      return { type: "text", body: block.body.map(toPublicBlock) };
     case "question":
       return toPublicQuestion(block);
     default: {
@@ -134,6 +137,38 @@ export function toPublicBlock(block: PublicBlockSource): PublicBlock {
       return never;
     }
   }
+}
+
+/**
+ * 受験画面の表示順を組み立てる。
+ *
+ * `@text` は作者の記述位置に残し、設問は出題順(`questionOrder`)で元の
+ * 設問スロットへ順に差し込む。出題順シャッフル時も本文と設問の位置関係を保つ。
+ */
+export function arrangePlayBlocks(blocks: PublicBlock[], questionOrder: string[]): PublicBlock[] {
+  const questions = new Map<string, PublicQuestion>();
+  for (const block of blocks) {
+    if (block.type === "question") questions.set(block.id, block);
+  }
+  const queue: PublicQuestion[] = [];
+  for (const id of questionOrder) {
+    const q = questions.get(id);
+    if (q) queue.push(q);
+  }
+
+  const out: PublicBlock[] = [];
+  let next = 0;
+  for (const block of blocks) {
+    if (block.type === "text") {
+      out.push(block);
+    } else if (block.type === "question") {
+      const q = queue[next++];
+      if (q) out.push(q);
+    }
+  }
+  // 入れ子などでスロットに収まらなかった設問を末尾に追加する
+  for (; next < queue.length; next++) out.push(queue[next]!);
+  return out;
 }
 
 function toPublicTable(table: TableBlock): PublicBlock {
