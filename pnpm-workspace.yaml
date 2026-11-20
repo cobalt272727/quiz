@@ -1,0 +1,11 @@
+packages:
+  - "packages/*"
+  - "apps/*"
+
+# pnpm 10+ は依存のビルドスクリプトを既定で実行しない。
+# Prisma エンジンなどの必要なものだけ許可する。
+allowBuilds:
+  '@prisma/client': true
+  '@prisma/engines': true
+  prisma: true
+  re2: true

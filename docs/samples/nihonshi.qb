@@ -1,0 +1,47 @@
+---
+title: 日本史 基礎
+description: 古代〜中世
+tags: [history, japan]
+lang: ja
+timeLimit: 600
+practiceFeedback: true
+shuffle: { questions: true, choices: true }
+normalize: { kana: false }
+---
+
+# 第1章 古代
+
+## 1-1 飛鳥時代
+
+聖徳太子は **[[603]]** 年に冠位十二階を制定した。
+
+@q points=2
+聖徳太子が制定した憲法を答えよ。
+[[十七条憲法 | 十七条の憲法 | 17条憲法]]
+@explain
+604 年に制定された。
+@end
+
+@q
+冠位十二階が定められたのは [[?603 | 593 | 645 | 701]] 年である。
+@end
+
+| 時代 | 人物 | 出来事 |
+|------|------|--------|
+| 飛鳥 | [[蘇我馬子]] | 仏教導入 |
+| 奈良 | [[聖武天皇]] | [[?大仏造立 \| 平安遷都 \| 承久の乱]] |
+
+@q type=multi
+次のうち室町時代のものをすべて選べ。
+- [x] 勘合貿易
+- [ ] 墾田永年私財法
+- [x] 応仁の乱
+@explain
+墾田永年私財法は奈良時代。
+@end
+
+@q type=truefalse answer=false
+冠位十二階は 604 年に制定された。
+@explain
+冠位十二階は 603 年。604 年は十七条憲法。
+@end

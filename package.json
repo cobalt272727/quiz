@@ -1,0 +1,40 @@
+{
+  "name": "qb-markup",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "問題ブック作成サイト(SPEC_v4)",
+  "engines": {
+    "node": ">=22.6"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @qb/web dev",
+    "build": "pnpm --filter @qb/web build",
+    "start": "pnpm --filter @qb/web start",
+    "test": "pnpm --filter @qb/parser test",
+    "typecheck": "pnpm --filter @qb/parser typecheck && pnpm --filter @qb/web typecheck",
+    "check": "node tools/qb-check.ts",
+    "db:generate": "prisma generate",
+    "db:validate": "prisma validate",
+    "db:migrate": "prisma migrate dev",
+    "db:studio": "prisma studio",
+    "db:diff": "prisma migrate diff --from-empty --to-schema-datamodel prisma/schema.prisma --script",
+    "db:verify": "node tools/verify-sql.ts",
+    "db:deploy": "prisma migrate deploy",
+    "verify": "pnpm test && pnpm typecheck && pnpm db:verify && pnpm build",
+    "e2e": "node --env-file=.env tools/e2e-api.ts && node --env-file=.env tools/e2e-blanks.ts && node --env-file=.env tools/e2e-share.ts && node --env-file=.env tools/e2e-assets.ts && node --env-file=.env tools/e2e-regex.ts && node --env-file=.env tools/e2e-admin.ts && node --env-file=.env tools/e2e-learning.ts && node --env-file=.env tools/e2e-account.ts && node --env-file=.env tools/e2e-books.ts",
+    "admin:grant": "node --env-file=.env tools/grant-admin.ts",
+    "user:passwd": "node --env-file=.env tools/set-password.ts",
+    "og:image": "node tools/make-og-image.ts"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.16",
+    "prisma": "^6.19.3",
+    "sharp": "^0.35.5",
+    "typescript": "^5.9.2",
+    "fflate": "^0.8.2"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.3"
+  }
+}

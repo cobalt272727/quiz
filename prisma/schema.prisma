@@ -1,0 +1,356 @@
+// 問題ブック作成サイト DB スキーマ(SPEC_v4 §6)
+//
+// Prisma で表現できない制約・索引(部分 UNIQUE、式インデックス、生成列、
+// GIN/trigram 索引など)は prisma/migrations の SQL で定義する(§6.3)。
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  user
+  admin
+}
+
+enum Visibility {
+  private
+  link
+  public
+  invite
+}
+
+enum MemberRole {
+  editor
+  viewer
+}
+
+enum EntityKind {
+  question
+  blank
+}
+
+enum AttemptMode {
+  practice
+  exam
+  review
+}
+
+enum AttemptStatus {
+  in_progress
+  submitted
+  expired
+  abandoned
+}
+
+enum ReportStatus {
+  open
+  reviewing
+  resolved
+  rejected
+}
+
+model User {
+  id                 String    @id @default(cuid())
+  // 論理削除時に NULL にして解放する(§3.4)。一意性は lower(loginId) の式インデックス
+  loginId            String?
+  passwordHash       String?
+  name               String    @default("")
+  role               UserRole  @default(user)
+  suspendedAt        DateTime?
+  deletedAt          DateTime?
+  /// 管理者発行の一時パスワードなど、次のログイン後に変更を強制する(§3.4)
+  mustChangePassword Boolean   @default(false)
+  /// パスワード最終変更時刻。一時パスワードの有効期限判定に使う
+  passwordChangedAt  DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  sessions      Session[]
+  recoveryCodes RecoveryCode[]
+  books         Book[]          @relation("BookOwner")
+  memberships   BookMember[]
+  attempts      Attempt[]
+  bookmarks     Bookmark[]
+  reports       Report[]
+  adminActions  AdminAuditLog[]
+
+  @@index([deletedAt])
+}
+
+model Session {
+  id         String    @id @default(cuid())
+  userId     String
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  userAgent  String    @default("")
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model RecoveryCode {
+  id        String    @id @default(cuid())
+  userId    String
+  codeHash  String    @unique
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+/// ログイン(ID+IP)・回復・check などの試行制限(§6.1)
+model RateLimit {
+  key             String    @id
+  windowStartedAt DateTime
+  count           Int       @default(0)
+  lockedUntil     DateTime?
+  updatedAt       DateTime  @updatedAt
+
+  @@index([lockedUntil])
+}
+
+model Book {
+  id             String     @id @default(cuid())
+  ownerId        String
+  title          String
+  description    String?
+  tags           String[]   @default([])
+  visibility     Visibility @default(private)
+  shareTokenHash String?    @unique
+  allowFork      Boolean    @default(false)
+  source         String
+  ast            Json
+  astVersion     Int        @default(1)
+  parserVersion  String
+  version        Int        @default(1)
+  hiddenByAdmin  Boolean    @default(false)
+  deletedAt      DateTime?
+  forkedFromId   String?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  owner      User   @relation("BookOwner", fields: [ownerId], references: [id])
+  forkedFrom Book?  @relation("BookFork", fields: [forkedFromId], references: [id])
+  forks      Book[] @relation("BookFork")
+
+  versions  BookVersion[]
+  entityIds BookEntityId[]
+  revisions QuestionRevision[]
+  members   BookMember[]
+  assets    Asset[]
+  attempts  Attempt[]
+  bookmarks Bookmark[]
+  reports   Report[]
+
+  @@index([ownerId])
+  @@index([visibility, updatedAt])
+  @@index([deletedAt])
+  @@index([forkedFromId])
+}
+
+/// 履歴(直近 50 件。Attempt が参照する version は剪定しない。§6.4)
+model BookVersion {
+  id            String   @id @default(cuid())
+  bookId        String
+  version       Int
+  source        String
+  ast           Json?
+  parserVersion String
+  astVersion    Int      @default(1)
+  createdAt     DateTime @default(now())
+
+  book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@unique([bookId, version])
+  @@index([bookId, createdAt])
+}
+
+/// 発行済み ID 台帳。退役済み ID の再利用検出に使う(§4.6)
+model BookEntityId {
+  bookId         String
+  kind           EntityKind
+  id             String
+  firstVersion   Int
+  retiredVersion Int?
+
+  book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@id([bookId, kind, id])
+  @@index([bookId, retiredVersion])
+}
+
+/// 設問リビジョン。採点に影響する変更のときだけ増える(§4.6)
+model QuestionRevision {
+  id              String   @id @default(cuid())
+  bookId          String
+  questionId      String
+  revision        Int
+  gradingHash     String
+  gradingSnapshot Json
+  createdAt       DateTime @default(now())
+
+  book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@unique([bookId, questionId, revision])
+  @@index([bookId, questionId])
+}
+
+model BookMember {
+  bookId    String
+  userId    String
+  role      MemberRole
+  createdAt DateTime   @default(now())
+
+  book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([bookId, userId])
+  @@index([userId])
+}
+
+model Asset {
+  id         String   @id @default(cuid())
+  bookId     String
+  name       String
+  mime       String
+  size       Int
+  storageKey String   @unique
+  width      Int?
+  height     Int?
+  createdAt  DateTime @default(now())
+
+  book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@unique([bookId, name])
+  @@index([bookId])
+}
+
+model Attempt {
+  id             String        @id @default(cuid())
+  bookId         String
+  bookVersion    Int
+  userId         String?
+  /// ゲスト受験の資格情報(Attempt 単位。SHA-256 ハッシュのみ保存。§7.6)
+  /// 同じブラウザで複数回受験できるよう、ハッシュは一意にしない(索引のみ)
+  guestTokenHash String?
+  mode           AttemptMode
+  status         AttemptStatus @default(in_progress)
+  startedAt      DateTime      @default(now())
+  deadlineAt     DateTime?
+  finishedAt     DateTime?
+  score          Decimal       @default(0) @db.Decimal(10, 2)
+  maxScore       Decimal       @default(0) @db.Decimal(10, 2)
+  /// seed・出題セットと順序・questionId→revision・オプション(§3.3)
+  settings       Json
+  anonymizedAt   DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  book        Book         @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  user        User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  answers     Answer[]
+  shareResult ShareResult?
+
+  @@index([bookId])
+  @@index([userId])
+  @@index([status, deadlineAt])
+  @@index([bookId, status])
+  @@index([guestTokenHash])
+}
+
+model Answer {
+  id               String    @id @default(cuid())
+  attemptId        String
+  questionId       String
+  /// 採点に使った設問リビジョン(§4.6)
+  questionRevision Int
+  /// NULL は設問単位の回答(single/multi/truefalse/essay)
+  blankId          String?
+  value            Json
+  correct          Boolean?
+  points           Decimal   @default(0) @db.Decimal(6, 2)
+  selfGraded       Boolean   @default(false)
+  checkedAt        DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  attempt Attempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+
+  // (attemptId, questionId, blankId) の一意性は SQL マイグレーションで
+  // UNIQUE NULLS NOT DISTINCT として定義する(NULL 同士を等しいとみなすため)
+  @@index([attemptId])
+  @@index([attemptId, questionId])
+}
+
+model Bookmark {
+  id         String   @id @default(cuid())
+  userId     String
+  bookId     String
+  questionId String?
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  // (userId, bookId, questionId) の一意性は SQL マイグレーションで定義する
+  @@index([userId])
+  @@index([bookId])
+  @@index([userId, bookId])
+}
+
+model ShareResult {
+  id        String    @id @default(cuid())
+  attemptId String    @unique
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  attempt Attempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+}
+
+model Report {
+  id         String       @id @default(cuid())
+  bookId     String
+  reporterId String
+  reason     String
+  status     ReportStatus @default(open)
+  createdAt  DateTime     @default(now())
+  resolvedAt DateTime?
+
+  book     Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  reporter User @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([bookId])
+}
+
+model AdminAuditLog {
+  id          String   @id @default(cuid())
+  adminUserId String
+  action      String
+  targetType  String
+  targetId    String
+  reason      String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  adminUser User @relation(fields: [adminUserId], references: [id])
+
+  @@index([createdAt])
+  @@index([targetType, targetId])
+}

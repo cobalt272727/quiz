@@ -1,0 +1,179 @@
+@import "tailwindcss";
+
+/* クラス指定でダークモードを切り替える(システム設定は初期値として使う) */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "Hiragino Sans", "Yu Gothic UI", "Noto Sans JP", system-ui, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", "Source Han Code JP", monospace;
+}
+
+:root {
+  color-scheme: light;
+}
+
+.dark {
+  color-scheme: dark;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  @apply bg-slate-50 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;
+}
+
+/* ------------------------------------------------------------------ */
+/* ブック本文                                                          */
+/* ------------------------------------------------------------------ */
+
+.qb-book {
+  @apply text-[15px] leading-7;
+}
+
+.qb-book h1 {
+  @apply mt-8 mb-4 border-b border-slate-200 pb-2 text-2xl font-bold first:mt-0 dark:border-slate-800;
+}
+
+.qb-book h2 {
+  @apply mt-7 mb-3 text-xl font-bold;
+}
+
+.qb-book h3 {
+  @apply mt-6 mb-2 text-lg font-semibold;
+}
+
+.qb-book p {
+  @apply my-3 whitespace-pre-wrap;
+}
+
+.qb-book ul {
+  @apply my-3 list-disc pl-6;
+}
+
+.qb-book ol {
+  @apply my-3 list-decimal pl-6;
+}
+
+.qb-book li {
+  @apply my-1;
+}
+
+.qb-book a {
+  @apply text-blue-600 underline underline-offset-2 hover:text-blue-500 dark:text-blue-400;
+}
+
+.qb-book code {
+  @apply rounded bg-slate-100 px-1 py-0.5 font-mono text-[0.9em] dark:bg-slate-800;
+}
+
+.qb-book pre {
+  @apply my-4 overflow-x-auto rounded-lg bg-slate-900 p-4 font-mono text-[13px] text-slate-100;
+}
+
+.qb-book pre code {
+  @apply bg-transparent p-0 text-inherit;
+}
+
+.qb-book blockquote {
+  @apply my-4 border-l-4 border-slate-300 pl-4 text-slate-600 dark:border-slate-700 dark:text-slate-300;
+}
+
+.qb-book table {
+  @apply my-4 w-full border-collapse overflow-hidden text-sm;
+}
+
+.qb-book th {
+  @apply border border-slate-300 bg-slate-100 px-3 py-2 text-left font-semibold dark:border-slate-700 dark:bg-slate-800;
+}
+
+.qb-book td {
+  @apply border border-slate-300 px-3 py-2 align-top dark:border-slate-700;
+}
+
+.qb-book img {
+  @apply my-4 max-w-full rounded-lg border border-slate-200 dark:border-slate-800;
+}
+
+.qb-book .katex-display {
+  @apply my-4 overflow-x-auto overflow-y-hidden py-1;
+}
+
+/* 空欄 */
+.qb-blank {
+  @apply inline-block min-w-24 rounded border border-b-2 border-slate-300 border-b-blue-500 bg-white px-2 py-0.5 text-center align-baseline text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:border-slate-700 dark:border-b-blue-400 dark:bg-slate-900 dark:text-slate-100 dark:focus:ring-blue-900;
+}
+
+.qb-blank[data-state="correct"] {
+  @apply border-emerald-400 bg-emerald-50 dark:border-emerald-500 dark:bg-emerald-950/40;
+}
+
+.qb-blank[data-state="incorrect"] {
+  @apply border-rose-400 bg-rose-50 dark:border-rose-500 dark:bg-rose-950/40;
+}
+
+.qb-blank-placeholder {
+  @apply inline-block min-w-20 border-b-2 border-dashed border-slate-400 px-2 text-center text-slate-500 dark:border-slate-600 dark:text-slate-400;
+}
+
+.qb-choice-blank {
+  @apply rounded border border-slate-300 bg-white px-2 py-0.5 text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100;
+}
+
+/* 設問カード */
+.qb-question {
+  @apply my-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900;
+}
+
+.qb-question[data-state="correct"] {
+  @apply border-l-4 border-l-emerald-500;
+}
+
+.qb-question[data-state="incorrect"] {
+  @apply border-l-4 border-l-rose-500;
+}
+
+.qb-choice {
+  @apply flex cursor-pointer items-start gap-2 rounded-lg border border-slate-200 px-3 py-2 transition hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800/60;
+}
+
+.qb-choice[data-selected="true"] {
+  @apply border-blue-500 bg-blue-50 dark:border-blue-400 dark:bg-blue-950/40;
+}
+
+.qb-choice[data-correct="true"] {
+  @apply border-emerald-500 bg-emerald-50 dark:border-emerald-500 dark:bg-emerald-950/40;
+}
+
+/* スクロールバー(控えめ) */
+.thin-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.thin-scroll::-webkit-scrollbar-thumb {
+  @apply rounded-full bg-slate-300 dark:bg-slate-700;
+}
+
+/* CodeMirror のテーマ変数(globals の light/dark に追従) */
+:root {
+  --cm-bg: #ffffff;
+  --cm-fg: #0f172a;
+  --cm-gutter-bg: #f8fafc;
+  --cm-gutter-fg: #94a3b8;
+  --cm-border: #e2e8f0;
+  --cm-active: #f1f5f9;
+  --cm-selection: #bfdbfe;
+}
+
+.dark {
+  --cm-bg: #0f172a;
+  --cm-fg: #e2e8f0;
+  --cm-gutter-bg: #0b1220;
+  --cm-gutter-fg: #64748b;
+  --cm-border: #1e293b;
+  --cm-active: #1e293b;
+  --cm-selection: #1d4ed8;
+}
